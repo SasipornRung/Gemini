@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <title>PropDecoded Dashboard</title>
+  <!-- โหลด Vega & Vega-Lite -->
+  <script src="https://cdn.jsdelivr.net/npm/vega@5"></script>
+  <script src="https://cdn.jsdelivr.net/npm/vega-lite@5"></script>
+  <script src="https://cdn.jsdelivr.net/npm/vega-embed@6"></script>
+  <style>
+    body {
+      background: #0C0F14;
+      color: #E6E8EB;
+      font-family: 'Inter', 'IBM Plex Sans', 'Work Sans', sans-serif;
+      margin: 0;
+      padding: 1rem;
+    }
+    h2 { margin-top: 2rem; }
+    .chart {
+      margin: 1rem 0;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>PropDecoded — Condo Analytics</h1>
+
+  <!-- A. Time-Series -->
+  <h2>A. Time-Series 30 ปี (Launch vs Resale)</h2>
+  <div id="chart-timeseries" class="chart"></div>
+
+  <!-- B1. DOM Scatter -->
+  <h2>B1. DOM Scatter</h2>
+  <div id="chart-dom-scatter" class="chart"></div>
+
+  <!-- B2. DOM Distribution -->
+  <h2>B2. DOM Distribution</h2>
+  <div id="chart-dom-dist" class="chart"></div>
+
+  <!-- C. Mini-Multiples -->
+  <h2>C. Mini-Multiples</h2>
+  <div id="chart-mini" class="chart"></div>
+
+  <!-- D. Future Teasers -->
+  <h2>D. Future Teasers</h2>
+  <div id="chart-plan-types" class="chart"></div>
+
+  <script>
+    // === A. Time-Series ===
+    const specTimeSeries = {
+      "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+      "title": {"text": "New CBD — Historical Launch vs Resale (1995–2025)"},
+      "data": {"url": "prices_yearly.csv"},
+      "transform": [
+        {"filter": "datum.area_name == 'New CBD'"}
+      ],
+      "layer": [
+        {
+          "mark": {"type": "area", "opacity": 0.2},
+          "encoding": {
+            "x": {"field": "year", "type": "temporal"},
+            "y": {"field": "launch_price_p25", "type": "quantitative"},
+            "y2": {"field": "launch_price_p75"},
+            "color": {"value": "#6AA0FF"}
+          }
+        },
+        {
+          "mark": {"type": "line", "strokeWidth": 2},
+          "encoding": {
+            "x": {"field": "year", "type": "temporal"},
+            "y": {"field": "launch_price_avg", "type": "quantitative"},
+            "color": {"value": "#2D6CDF"}
+          }
+        },
+        {
+          "mark": {"type": "line", "strokeWidth": 2},
+          "encoding": {
+            "x": {"field": "year", "type": "temporal"},
+            "y": {"field": "resale_price_avg", "type": "quantitative"},
+            "color": {"value": "#86E3CE"}
+          }
+        }
+      ]
+    };
+    vegaEmbed('#chart-timeseries', specTimeSeries);
+
+    // === B1. DOM Scatter ===
+    const specDomScatter = {
+      "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+      "data": {"url": "listings.csv"},
+      "mark": {"type": "point", "filled": true, "opacity": 0.7},
+      "encoding": {
+        "x": {"field": "price_sqm", "type": "quantitative", "title": "ราคา/ตร.ม."},
+        "y": {"field": "dom_days", "type": "quantitative", "title": "DOM (วัน)"},
+        "tooltip": [
+          {"field": "project_id", "title": "โครงการ"},
+          {"field": "size_sqm", "title": "ขนาด (ตร.ม.)"},
+          {"field": "plan_type", "title": "ประเภทแปลน"},
+          {"field": "posted_date", "title": "โพสต์"},
+          {"field": "dom_days", "title": "DOM (วัน)"},
+          {"field": "price_sqm", "title": "ราคา/ตร.ม."}
+        ]
+      }
+    };
+    vegaEmbed('#chart-dom-scatter', specDomScatter);
+
+    // === B2. DOM Distribution ===
+    const specDomDist = {
+      "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+      "data": {"url": "dom_stats.csv"},
+      "mark": "boxplot",
+      "encoding": {
+        "x": {"field": "year_bucket", "type": "ordinal", "title": "ช่วงปี"},
+        "y": {"field": "dom_median", "type": "quantitative", "title": "DOM (วัน)"}
+      }
+    };
+    vegaEmbed('#chart-dom-dist', specDomDist);
+
+    // === C. Mini-Multiples ===
+    const specMini = {
+      "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+      "data": {"url": "prices_yearly.csv"},
+      "facet": {"row": {"field": "area_name", "type": "nominal"}},
+      "spec": {
+        "mark": "line",
+        "encoding": {
+          "x": {"field": "year", "type": "temporal"},
+          "y": {"field": "launch_price_avg", "type": "quantitative"},
+          "color": {"value": "#2D6CDF"}
+        }
+      }
+    };
+    vegaEmbed('#chart-mini', specMini);
+
+    // === D. Plan Types Over Time ===
+    const specPlanTypes = {
+      "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+      "data": {"url": "listings.csv"},
+      "transform": [
+        {"calculate": "year(toDate(datum.posted_date))", "as": "year"},
+        {"aggregate": [{"op": "count", "as": "n"}], "groupby": ["year", "plan_type"]},
+        {"window": [{"op": "sum", "field": "n", "as": "total"}], "groupby": ["year"]},
+        {"calculate": "datum.n / datum.total", "as": "share"}
+      ],
+      "mark": "area",
+      "encoding": {
+        "x": {"field": "year", "type": "temporal"},
+        "y": {"field": "share", "type": "quantitative", "stack": "normalize"},
+        "color": {"field": "plan_type", "type": "nominal"}
+      }
+    };
+    vegaEmbed('#chart-plan-types', specPlanTypes);
+  </script>
+</body>
+</html>
